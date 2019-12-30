@@ -1,4 +1,4 @@
-//Test comment
+//////////////////////// Global Variables /////////////////////////////////////////////
 require("dotenv").config();
 const mongoose = require("mongoose");
 const findOrCreate = require("mongoose-findorcreate");
@@ -9,12 +9,15 @@ const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const GitHubStrategy = require("passport-github").Strategy;
 
 var port = process.env.PORT;
 
 if (port == null || port == "") {
   port = 3000;
 }
+
+//////////////////////// Express App Setup /////////////////////////////////////////////
 
 app.set("view engine", "ejs");
 app.set(express.static("public"));
@@ -32,6 +35,8 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
+//////////////////////// Mongoose Setup /////////////////////////////////////////////
+
 // var globalMongoURL = `mongodb+srv://admin-mark:${process.env.PASSWORD}@cluster0-sdkut.mongodb.net/newDB`;
 var localMongoURL = "mongodb://localhost:27017/newDB";
 
@@ -47,13 +52,16 @@ mongoose.set("useCreateIndex", true);
 const userSchema = new mongoose.Schema({
   username: String,
   hash: String,
-  googleId: String
+  googleId: String,
+  githubId: String
 });
 
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
 
 const User = new mongoose.model("User", userSchema);
+
+//////////////////////// Passport Setup /////////////////////////////////////////////
 
 passport.use(User.createStrategy());
 
@@ -70,13 +78,11 @@ passport.deserializeUser(function(id, done) {
 passport.use(
   new GoogleStrategy(
     {
-      clientID: process.env.CLIENT_ID,
-      clientSecret: process.env.CLIENT_SECRET,
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: "http://localhost:3000/auth/google/secrets"
     },
     function(accessToken, refreshToken, profile, cb) {
-      console.log(profile);
-
       User.findOrCreate({ googleId: profile.id }, function(err, user) {
         return cb(err, user);
       });
@@ -84,18 +90,33 @@ passport.use(
   )
 );
 
-const parameters = {};
+passport.use(
+  new GitHubStrategy(
+    {
+      clientID: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+      callbackURL: "http://localhost:3000/auth/github/secrets"
+    },
+    function(accessToken, refreshToken, profile, cb) {
+      User.findOrCreate({ githubId: profile.id }, function(err, user) {
+        return cb(err, user);
+      });
+    }
+  )
+);
+
+//////////////////////// Get routes /////////////////////////////////////////////
 
 app.get("/", (req, res) => {
-  res.render("home", parameters);
+  res.render("home");
 });
 
 app.get("/register", (req, res) => {
-  res.render("register", parameters);
+  res.render("register");
 });
 
 app.get("/login", (req, res) => {
-  res.render("login", parameters);
+  res.render("login");
 });
 
 app.get("/logout", (req, res) => {
@@ -105,11 +126,13 @@ app.get("/logout", (req, res) => {
 
 app.get("/secrets", (req, res) => {
   if (req.isAuthenticated()) {
-    res.render("secrets", parameters);
+    res.render("secrets");
   } else {
     res.redirect("/login");
   }
 });
+
+//////////////////////// Post routes /////////////////////////////////////////////
 
 app.post("/register", (req, res) => {
   let password = req.body.password;
@@ -120,7 +143,7 @@ app.post("/register", (req, res) => {
       console.log(err);
       res.redirect("/register");
     } else {
-      passport.authenticate("local")(req, res, function() {
+      passport.authenticate("local")(req, res, () => {
         res.redirect("/secrets");
       });
     }
@@ -144,6 +167,8 @@ app.post("/login", (req, res) => {
   });
 });
 
+//////////////////////// OAuth 2.0 with Google and GitHub /////////////////////////////////////////////
+
 app.get(
   "/auth/google",
   passport.authenticate("google", { scope: ["profile"] })
@@ -152,6 +177,16 @@ app.get(
 app.get(
   "/auth/google/secrets",
   passport.authenticate("google", { failureRedirect: "/login" }),
+  function(req, res) {
+    res.redirect("/secrets");
+  }
+);
+
+app.get("/auth/github", passport.authenticate("github"));
+
+app.get(
+  "/auth/github/secrets",
+  passport.authenticate("github", { failureRedirect: "/login" }),
   function(req, res) {
     res.redirect("/secrets");
   }
