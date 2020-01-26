@@ -11,11 +11,7 @@ const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const GitHubStrategy = require("passport-github").Strategy;
 
-var port = process.env.PORT;
-
-if (port == null || port == "") {
-  port = 3000;
-}
+const port = process.env.PORT || 3000;
 
 //////////////////////// Express App Setup /////////////////////////////////////////////
 
@@ -27,7 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"));
 app.use(
   session({
-    secret: "keyboard cat",
+    secret: process.env.SECRET,
     resave: false,
     saveUninitialized: true
   })
@@ -37,16 +33,22 @@ app.use(passport.session());
 
 //////////////////////// Mongoose Setup /////////////////////////////////////////////
 
-var databaseName = "secretsDB";
-var globalMongoURL = `mongodb+srv://admin-mark:${process.env.PASSWORD}@cluster0-sdkut.mongodb.net/${databaseName}`;
-var localMongoURL = `mongodb://localhost:27017/${databaseName}`;
+const databaseName = "secretsDB";
+const globalMongoURL = `mongodb+srv://admin-mark:${process.env.PASSWORD}@cluster0-sdkut.mongodb.net/${databaseName}`;
+const localMongoURL = `mongodb://localhost:27017/${databaseName}`;
 
-mongoose.connect(localMongoURL, {
-  useNewUrlParser: true,
-  useFindAndModify: false,
-  useUnifiedTopology: true,
-  useCreateIndex: true
-});
+const mongoURL = process.env.NODE_ENV ? globalMongoURL : localMongoURL;
+
+mongoose
+  .connect(mongoURL, {
+    useNewUrlParser: true,
+    useFindAndModify: false,
+    useUnifiedTopology: true,
+    useCreateIndex: true
+  })
+  .catch(err => {
+    console.log(err);
+  });
 
 mongoose.set("useCreateIndex", true);
 
@@ -82,7 +84,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://localhost:3000/auth/google/secrets"
+      callbackURL: `${process.env.HOMEPAGE}/auth/google/secrets`
     },
     function(accessToken, refreshToken, profile, cb) {
       User.findOrCreate({ googleId: profile.id }, function(err, user) {
@@ -97,7 +99,7 @@ passport.use(
     {
       clientID: process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET,
-      callbackURL: "http://localhost:3000/auth/github/secrets"
+      callbackURL: `${process.env.HOMEPAGE}/auth/github/secrets`
     },
     function(accessToken, refreshToken, profile, cb) {
       User.findOrCreate({ githubId: profile.id }, function(err, user) {
