@@ -48,6 +48,7 @@ mongoose
   })
   .catch(err => {
     console.log(err);
+    console.log(mongoURL);
   });
 
 mongoose.set("useCreateIndex", true);
